@@ -1,97 +1,128 @@
-Network and Log Forensics Investigation: Identifying the presence of unathorized user
+# Network and Log Forensics: Identifying a Rogue User
+
+> A SOC-style investigation that traces unauthorized email activity at a fictional company ("Boring Office") back to a specific individual by pivoting across packet capture, DHCP logs, and Windows security logs.
+
+**Author:** Callistus — Security Analyst, Governance, Risk, and Compliance
+**Discipline:** Blue Team / Digital Forensics & Incident Response
+**Tools:** Wireshark · DHCP server logs · Windows Security Event Logs
+
+---
+
+## TL;DR
+
+A user inside Boring Office sent sensitive emails while impersonating another employee. Using only a `.pcap`, the DHCP server log, and the workstation security log, I pivoted from **email payload → source IP → host device → logged-in user** and identified the rogue actor as **John Doe**, working from host **USER2** at **12:11 PM** the same day the emails were sent.
+
+---
 
 ## Objective
 
-The purpose of this project is to simulate a real-world cybersecurity investigation within a Security Operations Center (SOC). The objective is to analyze network activity and logs to identify a rogue user within the company, "Boring Office," suspected of impersonating an employee and disseminating sensitive information. This project showcases the critical thinking, technical skills, and forensic methodologies used to resolve cybersecurity incidents and reinforces the importance of log analysis and network traffic investigation in modern cybersecurity operations.
+Simulate a real-world Security Operations Center (SOC) investigation. Analyze network activity and host logs to identify a rogue user inside the fictional company "Boring Office" — an individual suspected of impersonating an employee and exfiltrating sensitive information over email.
 
-### Project Goal
-By completing this project, I aimed to achieve the following:
+The project demonstrates the critical thinking, technical skills, and forensic methodology used to resolve security incidents, and reinforces how layered log analysis and packet inspection are used together in modern blue-team operations.
 
-- Analyze Network Traffic:
-   - Investigate a provided .pcap file to extract key network activity details, including identifying a specific user's IP address.
-- Leverage DHCP Logs:
-   - Use DHCP logs to correlate the identified IP address to a specific host device within the network.
-- Investigate Security Logs:
-    - Review account security logs to determine which user account was actively logged in to the identified host device, uncovering the rogue user's identity.
+## Project Goals
 
-### Skills Used
-This project was designed to strengthen several critical cybersecurity skills, including:
+- **Analyze network traffic** — Investigate a provided `.pcap` file to extract key network activity details, including the source IP of the suspect email session.
+- **Leverage DHCP logs** — Use DHCP lease records to correlate the identified IP address back to a specific host device on the network.
+- **Investigate security logs** — Review Windows account security logs to determine which user account was actively logged in to that host device, surfacing the rogue user's identity.
 
-- Packet Analysis Skills:
-  - Gain proficiency in using tools like Wireshark to analyze .pcap files and extract meaningful information, such as IP addresses and suspicious activity patterns.
-- Log Correlation Techniques:
-  - Develop the ability to cross-reference DHCP logs with network traffic to map an IP address to a specific physical or virtual host within an environment.
-- User Attribution through Security Logs:
-  - Understand how to analyze account security logs to identify user actions and attribute activity to a specific individual.
-- Incident Investigation Workflow:
-  - Experience the structured approach of a Blue Team investigation, including evidence collection, analysis, and identification of the responsible user.
+## Skills Demonstrated
 
-## Step 1:  Find the IP Address
+- **Packet analysis** — Using Wireshark to filter `.pcap` files, follow protocol-specific traffic, and extract attribution-grade artifacts (IP addresses, sender fields, suspicious patterns).
+- **Log correlation** — Cross-referencing DHCP lease activity against network traffic to map an IP address to a physical or virtual host within an environment.
+- **User attribution via security logs** — Reading logon/logoff events to attribute host activity to a specific user account.
+- **Incident investigation workflow** — Practicing the structured Blue Team approach: evidence collection → analysis → attribution → conclusion.
 
-![wireshark 1](https://github.com/user-attachments/assets/e9ea9585-8b24-404a-8023-e8d576d2aceb)
+---
 
-1. Initial Packet Count:
- - After opening the .pcap file, observe the total packet count (e.g., 60 packets). This represents all captured network traffic.
-2. Applying the First Filter:
- - Input the filter smtp in the "Apply a display filter..." field and press Enter.
- - This filter narrows down the results to packets using the Simple Mail Transfer Protocol (SMTP), which is used for email communication.
-   ![smtp 1 ](https://github.com/user-attachments/assets/6f2cec54-ec7f-43de-b88c-9d045428ccf8)
+## Step 1 — Identify the Source IP from the PCAP
 
-3. Interpreting the Results:
- - The displayed packets will now only include SMTP traffic. This step is crucial for focusing the analysis on email-related activities within the network.
-4. Refining the Filter Further:
- - To specifically locate packets containing a "FROM" field, which indicates the sender’s email address, refine the filter by inputting: (smtp contains "FROM")
- - This further reduces the displayed packets to those containing the keyword "FROM" within the SMTP protocol, allowing you to hone in on messages that may be tied to the rogue user.
-![smtp_from](https://github.com/user-attachments/assets/9020a470-98b0-4617-8521-2844bff744a6)
- 5. Analyze the Single Packet:
- - Observe that a single packet remains in the filtered results.
- - Check the info column to confirm that the packet is associated with the compromised user’s email account.
-6. Identify the Source IP Address:
- - Locate the source IP address in the packet details: 10.10.1.4
- - This IP address indicates the network location of the rogue user’s activity.
+![Wireshark — initial packet capture](https://github.com/user-attachments/assets/e9ea9585-8b24-404a-8023-e8d576d2aceb)
 
-### Step 2: Correlate to the Host Computer
-1. Open the DHCP Log File:
- - Review the log structure and focus on identifying events close to the critical time of 12:50 PM when the emails were sent.
-   
-![003c691e7bc9a3be38782c19e0f12af5](https://github.com/user-attachments/assets/e11099b5-2da3-4812-b86a-9cda3cac251b)
+**1. Initial packet count.** Open the `.pcap` and observe the total packet count (e.g., 60 packets) — this represents all captured network traffic in scope.
 
-2. Narrow the Timeframe:
- - Since the rogue user had to gain access before 12:50 PM, analyze events occurring just before that time, specifically around 12:11 PM.
-3. Locate the Event at 12:11:27 PM:
- - Find the event that shows the assignment of the IP address 10.10.1.4 to a host device.
-4. Identify the Host Device:
- - Confirm that the log entry at 12:11:27 PM assigns the IP address 10.10.1.4 to the host device USER2.
-5. Next Steps:
- - With the host device identified (USER2), access the security log for that device to determine which employee was logged in at the time. This will reveal the rogue user.
-This streamlined process allows you to efficiently trace the rogue activity to its source using DHCP and security logs.
-Example below.
+**2. First filter — narrow to email traffic.** Apply a Wireshark display filter to focus on email-related traffic:
+smtp
 
-### Step 3: Analyze the Security Log
-1. Open the Security Log File:
-2. Review the Log Entries:
- - Note the structure of the logs, paying close attention to the logon/logoff sessions and the associated host computers and users.
-   ![security log screenshot](https://github.com/user-attachments/assets/c971c8f5-ecbc-4543-82b5-7de0af61a4b2)
+This narrows the view to **Simple Mail Transfer Protocol (SMTP)** packets only, since the suspected activity involves outbound email.
 
-3. Analyze USER1 Entries:
- - Observe that the first two log entries are for host computer USER1, with the corresponding user identified as Jane Doe.
-4. Focus on USER2 Entries:
- - The last two log entries indicate logon/logoff sessions for host computer USER2.
- - Check the user field for these entries to identify the logged-in user.
-5. Confirm the Rogue User:
- - The logs reveal that John Doe was logged into USER2 during the time the sensitive emails were sent.
- - Confirm that the duration of John’s session perfectly overlaps with the timeframe of the rogue activity.
-6. Conclude the Investigation:
- - John Doe was logged into the host device (USER2) that was used to send the sensitive emails, confirming him as the rogue user.
+![Wireshark filtered to SMTP traffic](https://github.com/user-attachments/assets/6f2cec54-ec7f-43de-b88c-9d045428ccf8)
 
-   ### Conclusion
+**3. Refine — locate the sender field.** Tighten the filter to surface only the SMTP packet(s) carrying a `FROM:` header (the sender's email address):
+smtp contains "FROM"
 
-   By connecting the dots between the DHCP logs, security logs, and the timeline of events, we have successfully identified the individual responsible for the unauthorized activity.
+![Wireshark filtered to SMTP packets containing FROM](https://github.com/user-attachments/assets/9020a470-98b0-4617-8521-2844bff744a6)
 
-   ### Reference
-   1. Codepath Intermediate Cybersecurity Fall 2024 Unit 1 Lab 
-   
-*Ref 1: Network Diagram*# Network-and-Log-Forensics-Identifying-a-Rogue-User
-2. Codepath Intermediate Cybersecurity Fall 2024 Unit 1 Lab 
-     
+**4. Inspect the remaining packet.** A single packet remains. The Info column confirms it's tied to the impersonated user's email account.
+
+**5. Extract the source IP.** From the packet details, the source IP is:
+
+> **Source IP: `10.10.1.4`**
+
+This IP is now the lead — every subsequent step pivots from here.
+
+---
+
+## Step 2 — Correlate the IP to a Host Device (DHCP Logs)
+
+**1. Open the DHCP log.** Review the log structure and focus on lease activity around the time the emails were sent (~12:50 PM).
+
+![DHCP log entries](https://github.com/user-attachments/assets/e11099b5-2da3-4812-b86a-9cda3cac251b)
+
+**2. Narrow the timeframe.** The rogue user had to obtain a lease *before* sending the emails, so the relevant lease event should appear earlier in the day — in this case, around **12:11 PM**.
+
+**3. Locate the matching lease event.** At **12:11:27 PM**, the DHCP server assigned `10.10.1.4` to a specific host.
+
+**4. Identify the host device.** The lease record ties `10.10.1.4` to host **`USER2`**.
+
+> **Host device: `USER2`**
+
+With the host identified, the next pivot is into that workstation's security log to learn *who* was logged in.
+
+---
+
+## Step 3 — Attribute the Activity to a User (Security Logs)
+
+**1. Open the security log** for the time window covering the suspect activity.
+
+![Security log — logon and logoff events](https://github.com/user-attachments/assets/c971c8f5-ecbc-4543-82b5-7de0af61a4b2)
+
+**2. Walk the logon/logoff events.** Note that the first two entries are tied to host **`USER1`** (logged-in user: **Jane Doe**) — these are unrelated to our IP of interest.
+
+**3. Focus on `USER2` entries.** The remaining entries cover the logon/logoff session for host **`USER2`** — the device that received the `10.10.1.4` lease.
+
+**4. Confirm the rogue user.** The `USER2` session is owned by **John Doe**, and the session window cleanly overlaps with the time the sensitive emails were sent.
+
+> **Rogue user: John Doe** (logged in to host `USER2`, leased `10.10.1.4`, source of the SMTP `FROM` packet at ~12:50 PM)
+
+---
+
+## Investigation Chain of Custody
+
+| Pivot | Source | Artifact | Result |
+|---|---|---|---|
+| 1. Email content → source IP | Wireshark `.pcap` | SMTP packet with `FROM:` header | `10.10.1.4` |
+| 2. IP → host device | DHCP server log | Lease event at 12:11:27 PM | Host `USER2` |
+| 3. Host → user identity | Windows security log | Logon session for `USER2` | **John Doe** |
+
+---
+
+## Conclusion
+
+By layering three independent data sources — packet capture, DHCP lease activity, and host security logs — the investigation produced a defensible attribution chain from the email payload all the way to a named individual. **John Doe**, working from host **USER2**, is the rogue user responsible for impersonating a colleague and sending the sensitive emails.
+
+The exercise reinforces a core SOC discipline: a single log source rarely tells the whole story, but a small handful of well-correlated sources almost always does.
+
+## What I'd Do Differently in a Real Engagement
+
+- **Preserve evidence integrity first** — Hash the original `.pcap` and log exports, work from copies, and document every pivot in a case management system.
+- **Expand the timeline** — Pull email server logs, EDR telemetry, and proxy logs to corroborate the SMTP packet and rule out shared-account or stolen-credential scenarios.
+- **Validate the chain of custody** — Confirm DHCP lease uniqueness for the period in question and verify there were no concurrent sessions on `USER2`.
+- **Hand off cleanly** — Package findings into an incident report with timestamps in UTC, screenshots of the filtered evidence, and a recommended response (account reset, manager notification, HR / legal escalation per policy).
+
+
+---
+
+*Project repository:* `Network-and-Log-Forensics-Identifying-a-Rogue-User`
+*Author:* Callistus — Security Analyst, GRC
       
