@@ -125,5 +125,5 @@ The exercise reinforces a core SOC discipline: a single log source rarely tells 
 ---
 
 *Project repository:* `Network-and-Log-Forensics`
-*Author:* Callistus — Cyber Security Analyst, GRC, Security Architect
+*Author:* Callistus : Cyber Security Analyst, GRC, Security Architect
       
